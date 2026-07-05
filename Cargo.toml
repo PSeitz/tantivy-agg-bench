@@ -1,0 +1,39 @@
+[package]
+name = "tantivy-agg-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Track tantivy aggregation performance over time and across machines, by running the same benchmark suite against any tantivy commit via the stable JSON aggregation interface."
+
+# ── tantivy under test ──────────────────────────────────────────────────────
+# Point this at ANY commit/branch/tag you want to benchmark. Only this line
+# changes between runs — the benchmark itself talks to tantivy through the JSON
+# aggregation request API, which is stable across versions.
+#
+#   rev    = "<40-char sha>"   pin an exact commit          (most reproducible)
+#   branch = "main"           track a branch
+#   tag    = "0.25.0"         a release tag
+#
+# To benchmark local, uncommitted work instead, comment the git line out and use:
+#   tantivy = { path = "/Users/pascal.seitz/Development/tantivy" }
+# then `git checkout <commit>` inside that repo before running.
+[dependencies]
+tantivy = { git = "https://github.com/quickwit-oss/tantivy", rev = "6b8bd7b8847c87686117a0e3a400bd6377afb8fd" }
+
+# ── benchmark harness deps (independent of tantivy's own versions) ───────────
+[dev-dependencies]
+binggan = "0.17.0"
+rand = "0.9"
+rand_distr = "0.5"
+serde_json = "1.0.140"
+
+[[bench]]
+name = "agg_bench"
+harness = false
+
+# Optimize the code under test; benchmarking a debug build is meaningless.
+[profile.release]
+debug = true
+
+[profile.bench]
+debug = true

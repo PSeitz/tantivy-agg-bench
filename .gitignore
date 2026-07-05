@@ -1,0 +1,4 @@
+/target
+Cargo.lock
+# reused benchmark indexes (persisted per cardinality; reuse is the default)
+/agg_bench
