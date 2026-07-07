@@ -145,7 +145,7 @@ let bugI = D.commits.reduce((a, c, i) =>
 const hasBug = bugI[0] <= bugI[1];
 
 const state = { view: "overview", bench: null, cat: null,
-                card: "full", metric: "median_ns", scale: "log", sel: null };
+                card: "full", metric: "median_ns", scale: "linear", sel: null };
 
 // ---- controls ----------------------------------------------------------
 const el = id => document.getElementById(id);
@@ -390,8 +390,11 @@ function render() {
     xaxis: { tickmode: "array", tickvals: X, ticktext: TICKTEXT, tickangle: -90,
              tickfont: { size: 9 }, range: [-0.6, N - 0.4], showgrid: true,
              gridcolor: "#f0f0f0", zeroline: false },
+    // Linear axis starts at 0 (rangemode "tozero"); a log axis can't include 0.
     yaxis: { type: state.scale, title: { text: ytitle }, gridcolor: "#eee",
-             zeroline: false, ticks: "outside", autorange: true },
+             zeroline: state.scale === "linear", zerolinecolor: "#ccc",
+             ticks: "outside", autorange: true,
+             rangemode: state.scale === "linear" ? "tozero" : "normal" },
     // Our #serieslist panel is the legend + focus/hide control, so hide Plotly's.
     showlegend: false,
     shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
