@@ -47,6 +47,21 @@
   .srow.off { color:#adadad; }
   .srow.off .sw { background:transparent !important; }
   .srow.off .nm { text-decoration:line-through; }
+  .info { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px;
+          border-radius:50%; border:1px solid var(--muted); color:var(--muted); font:italic 700 9px/1 Georgia,serif;
+          cursor:help; vertical-align:middle; margin-left:4px; user-select:none; }
+  .info:hover { border-color:var(--accent); color:var(--accent); }
+  #qtip { position:fixed; z-index:1000; max-width:460px; background:#1e1e1e; color:#e8e8e8;
+          border:1px solid #3a3a3a; border-radius:7px; padding:9px 11px; display:none;
+          box-shadow:0 8px 28px rgba(0,0,0,.28); pointer-events:none;
+          font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  #qtip .qh { color:#8fc3ff; margin:0 0 5px; font-size:11.5px; }
+  #qtip .qh code { color:#ffd479; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  #qtip pre { margin:0; white-space:pre; overflow:auto; max-height:52vh;
+              font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#e8e8e8; }
+  #qtip dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:3px 10px; }
+  #qtip dt { color:#ffd479; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  #qtip dd { margin:0; }
   footer { color:var(--muted); font-size:12px; padding:8px 20px 14px; }
   footer b { color:var(--fg); font-weight:600; }
   kbd { font:11px monospace; background:#eee; border:1px solid #ddd; border-radius:3px; padding:0 4px; }
@@ -81,7 +96,7 @@
     <select id="cat"></select>
   </div>
   <div class="ctl" id="ctl-card">
-    <label>Cardinality</label>
+    <label>Cardinality <span class="info" id="cardinfo">i</span></label>
     <select id="card"></select>
   </div>
   <div class="ctl">
@@ -104,12 +119,14 @@
   <div id="chart"></div>
   <aside id="serieslist"></aside>
 </div>
+<div id="qtip"></div>
 
 <footer>
   <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> the plot to reset zoom ·
   <b>click a point</b> to open its PR/commit on GitHub. In the <b>series</b> list on the right:
-  <b>click a name</b> to show only that line, then <b>click more</b> to add them (click a shown one to
-  drop it); <b>✕</b> hides a single line; <b>show all</b> resets — the selection is saved in the URL.
+  <b>hover a row</b> to see its aggregation query · <b>click a name</b> to show only that line, then
+  <b>click more</b> to add them (click a shown one to drop it); <b>✕</b> hides a single line;
+  <b>show all</b> resets — the selection is saved in the URL.
   Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
 </footer>
 
@@ -280,6 +297,48 @@ function buildOverview() {
   });
 }
 
+// ---- hover tooltip (query info + cardinality help) ---------------------
+const qtip = el("qtip");
+const escHtml = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+function showTip(html) { qtip.innerHTML = html; qtip.style.display = "block"; }
+function hideTip() { qtip.style.display = "none"; }
+function moveTip(x, y) {
+  const pad = 14, w = qtip.offsetWidth, h = qtip.offsetHeight;
+  let left = x + pad, top = y + pad;
+  if (left + w > innerWidth - 6) left = Math.max(6, x - pad - w);
+  if (top + h > innerHeight - 6) top = Math.max(6, innerHeight - 6 - h);
+  qtip.style.left = left + "px"; qtip.style.top = top + "px";
+}
+function attachTip(node, htmlFn) {
+  node.addEventListener("mouseenter", e => { showTip(htmlFn()); moveTip(e.clientX, e.clientY); });
+  node.addEventListener("mousemove", e => moveTip(e.clientX, e.clientY));
+  node.addEventListener("mouseleave", hideTip);
+}
+
+const CARD_HELP =
+  `<div class="qh">Cardinality — how many values each document has for the aggregated ` +
+  `fast field (same queries, different data shape):</div><dl>` +
+  `<dt>full</dt><dd>every document has exactly one value (densest, most optimizable).</dd>` +
+  `<dt>dense</dt><dd>at most one value per doc (one empty doc forces the optional codec).</dd>` +
+  `<dt>sparse</dt><dd>only ~1 in 20 documents has a value (optional, mostly empty).</dd>` +
+  `<dt>multivalue</dt><dd>documents may hold any number of values (multi-valued fast field).</dd></dl>`;
+attachTip(el("cardinfo"), () => CARD_HELP);
+
+// The query behind a panel row: per-category rows are benches, per-benchmark rows
+// are cardinalities of the one chosen bench; overview rows are categories (none).
+function queryFor(rowName) {
+  const bench = state.view === "category" ? rowName
+              : state.view === "bench" ? state.bench : null;
+  const q = bench && D.queries ? D.queries[bench] : null;
+  return q ? { bench, q } : null;
+}
+function queryTipHtml({ bench, q }) {
+  const base = q.q === "*" ? "over all documents (match-all)"
+             : `over documents matching <code>${escHtml(q.q)}</code>`;
+  return `<div class="qh"><code>${escHtml(bench)}</code> — runs ${base}:</div>` +
+         `<pre>${escHtml(q.agg)}</pre>`;
+}
+
 // ---- series side-panel (our legend + hide/focus control) ---------------
 // state.sel is a whitelist of shown series (null = all shown). The panel and the
 // plot's `visible` flags both derive from it, so they stay in sync and share the
@@ -331,6 +390,8 @@ function renderPanel(traces, activeSel) {
     nm.className = "nm"; nm.textContent = t.name;
     row.append(sw, nm);
     row.onclick = () => focusSeries(t.name);
+    const qinfo = queryFor(t.name);
+    if (qinfo) attachTip(row, () => queryTipHtml(qinfo));
     if (shown) {
       const x = document.createElement("span");
       x.className = "x"; x.textContent = "✕"; x.title = "hide this line";

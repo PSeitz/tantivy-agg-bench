@@ -26,6 +26,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.path.dirname(HERE)
 DEFAULT_REPO = os.path.normpath(os.path.join(PROJ, "..", "tantivy"))
+BENCH_FILE = os.path.join(PROJ, "benches", "agg_bench.rs")
 
 # #2759 quadratic regression window (committer dates): [start, end), where
 # 2e16243f9 on 2026-04-21 is the fixed recovery point.
@@ -67,6 +68,59 @@ def category(name):
     if name.startswith("terms"):
         return "terms"
     return "other"
+
+
+def _clean_json_literal(raw):
+    """A Rust `json!({...})` literal -> pretty JSON text.
+
+    Strips the Rust-isms that make it invalid JSON (// comments, numeric
+    separators like 3_600_000, trailing commas), then reformats. Falls back to
+    the stripped text if it still doesn't parse.
+    """
+    s = re.sub(r"//[^\n]*", "", raw)          # line comments
+    s = re.sub(r"(?<=\d)_(?=\d)", "", s)      # 3_600_000 -> 3600000
+    s = re.sub(r",(\s*[}\]])", r"\1", s)      # trailing commas
+    try:
+        return json.dumps(json.loads(s), indent=2)
+    except json.JSONDecodeError:
+        return "\n".join(l.rstrip() for l in s.strip().splitlines())
+
+
+def parse_bench_queries(path):
+    """{bench_name: {"agg": <pretty json>, "q": "*" | 'text:"cool"'}} from agg_bench.rs.
+
+    Each bench fn `fn NAME(index: &Index) { let agg_req = json!({..}); <exec>; }`
+    carries the aggregation request as a JSON literal; the executor tells us the
+    base query (execute_agg -> match-all, exec_term_with_agg -> text:"cool").
+    """
+    try:
+        src = open(path).read()
+    except OSError:
+        print(f"warn: {path} not found; skipping query info")
+        return {}
+    out = {}
+    for m in re.finditer(r"fn\s+(\w+)\s*\(index:\s*&Index\)\s*\{", src):
+        name = m.group(1)
+        jm = re.search(r"json!\(\{", src[m.end():])
+        if not jm:
+            continue
+        open_idx = m.end() + jm.end() - 1     # the '{' after json!(
+        depth, i, end = 0, open_idx, None
+        while i < len(src):
+            if src[i] == "{":
+                depth += 1
+            elif src[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+            i += 1
+        if end is None:
+            continue
+        after = src[end:end + 200]
+        q = 'text:"cool"' if "exec_term_with_agg" in after else "*"
+        out[name] = {"agg": _clean_json_literal(src[open_idx:end + 1]), "q": q}
+    return out
 
 
 def repo_web_url(repo):
@@ -280,6 +334,11 @@ def main():
                     per_metric[m].append(None if entry is None else entry.get(m))
             series[card][b] = per_metric
 
+    queries = parse_bench_queries(BENCH_FILE)
+    missing = [b for b in benches if b not in queries]
+    if missing:
+        print(f"note: no parsed query for {len(missing)} benches: {', '.join(missing[:5])}...")
+
     data = dict(
         instance=inst,
         repo_url=base_url,
@@ -290,6 +349,7 @@ def main():
         benches=benches,
         categories={b: category(b) for b in benches},
         series=series,
+        queries=queries,
     )
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
