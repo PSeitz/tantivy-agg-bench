@@ -85,8 +85,8 @@
 <footer>
   <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> to reset ·
   <b>click a point</b> to open that commit on GitHub · <b>click a legend entry</b> to show only that
-  series (click again for all; double-click toggles one on/off) — the selection is saved in the URL.
-  Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
+  series, then <b>click more</b> to add them (click a selected one to drop it; double-click to show all)
+  — the selection is saved in the URL. Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
 </footer>
 
 <script>
@@ -297,8 +297,10 @@ function render() {
              gridcolor: "#f0f0f0", zeroline: false },
     yaxis: { type: state.scale, title: { text: ytitle }, gridcolor: "#eee",
              zeroline: false, ticks: "outside", autorange: true },
+    // itemclick/doubleclick false: disable Plotly's built-in toggle so our custom
+    // accumulate-selection handlers fully own legend clicks (the event still fires).
     legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left",
-              itemclick: "toggleothers", itemdoubleclick: "toggle" },
+              itemclick: false, itemdoubleclick: false },
     shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
   };
   const config = { responsive: true, scrollZoom: true, displaylogo: false,
@@ -312,13 +314,28 @@ function render() {
       const url = ev.points?.[0]?.customdata?.[4];
       if (url) window.open(url, "_blank", "noopener");
     });
-    // Legend clicks (isolate via toggleothers) change trace visibility -> mirror
-    // the visible set into the URL. null when everything is shown again.
-    div.on("plotly_restyle", () => {
-      const vis = div.data.filter(t => t.visible !== "legendonly" && t.visible !== false)
-                          .map(t => t.name);
-      state.sel = vis.length === div.data.length ? null : vis;
-      pushHash();
+    // Custom legend selection (built-in modes can't accumulate): the first click
+    // isolates a series; each further click adds/removes one; removing the last
+    // one — or a double-click — shows everything again. Persisted in the URL.
+    // Deferred to a microtask + return false so Plotly's own toggle is skipped.
+    div.on("plotly_legendclick", ev => {
+      const name = div.data[ev.curveNumber]?.name;
+      if (name != null) {
+        let sel = state.sel ? state.sel.slice() : null;
+        if (!sel) sel = [name];                                   // first: isolate
+        else if (sel.includes(name)) {                            // click again: drop
+          sel = sel.filter(n => n !== name);
+          if (!sel.length) sel = null;                            // none left: show all
+        } else sel.push(name);                                    // add to selection
+        state.sel = sel;
+        setTimeout(() => { render(); pushHash(); }, 0);
+      }
+      return false;
+    });
+    div.on("plotly_legenddoubleclick", () => {
+      state.sel = null;
+      setTimeout(() => { render(); pushHash(); }, 0);
+      return false;
     });
     inited = true;
   }
