@@ -112,8 +112,12 @@ stable across every buggy-era commit → real, not noise. Plain aggs
 ## Chart — an interactive website (`site/`)
 
 The chart is a **static, self-contained website** (Plotly.js) — zoom/pan, hover a
-point for the commit's date + hash + subject, and **click a point to open that
-commit on GitHub** (`quickwit-oss/tantivy`, the upstream remote). Build + view:
+point for the commit's date + `#PR · title`, and **click a point to open that
+PR on GitHub** (`quickwit-oss/tantivy`, the upstream remote; falls back to the
+commit when a point has no PR). PRs are resolved per commit via
+`gh api repos/<slug>/commits/<sha>/pulls` and cached in `scripts/pr_cache.json`
+(immutable per full SHA, committed); `build_site.py --no-pr` opts out (offline →
+commit links). Build + view:
 
 ```sh
 python3 scripts/build_site.py          # regenerate site/data.js from results/
