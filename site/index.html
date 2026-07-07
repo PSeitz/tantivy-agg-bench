@@ -26,7 +26,27 @@
   .seg button + button { border-left:1px solid #ccc; }
   .seg button.on { background:var(--fg); color:#fff; }
   .ctl.hidden { display:none; }
-  #chart { width:100%; height:calc(100vh - 210px); min-height:440px; }
+  #plotwrap { display:flex; align-items:stretch; }
+  #chart { flex:1 1 auto; min-width:0; height:calc(100vh - 210px); min-height:440px; }
+  #serieslist { flex:0 0 214px; height:calc(100vh - 210px); overflow-y:auto;
+                border-left:1px solid var(--line); background:#fff; padding:4px 0 10px; }
+  .plhead { display:flex; align-items:center; justify-content:space-between; gap:8px;
+            padding:5px 10px 7px; font-size:11px; text-transform:uppercase;
+            letter-spacing:.04em; color:var(--muted); position:sticky; top:0; background:#fff;
+            border-bottom:1px solid var(--line); }
+  .plhead button { font-size:11px; border:1px solid #ccc; background:#fff; border-radius:5px;
+                   padding:2px 7px; cursor:pointer; color:var(--fg); }
+  .plhead button:disabled { opacity:.4; cursor:default; }
+  .srow { display:flex; align-items:center; gap:7px; padding:3px 8px 3px 10px; cursor:pointer;
+          font-size:12px; line-height:1.3; }
+  .srow:hover { background:#f3f3f3; }
+  .srow .sw { flex:0 0 auto; width:11px; height:11px; border-radius:2px; border:1.5px solid; }
+  .srow .nm { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .srow .x { flex:0 0 auto; width:17px; text-align:center; color:#b3b3b3; font-size:13px; border-radius:3px; }
+  .srow .x:hover { color:#fff; background:var(--accent); }
+  .srow.off { color:#adadad; }
+  .srow.off .sw { background:transparent !important; }
+  .srow.off .nm { text-decoration:line-through; }
   footer { color:var(--muted); font-size:12px; padding:8px 20px 14px; }
   footer b { color:var(--fg); font-weight:600; }
   kbd { font:11px monospace; background:#eee; border:1px solid #ddd; border-radius:3px; padding:0 4px; }
@@ -80,13 +100,17 @@
   </div>
 </div>
 
-<div id="chart"></div>
+<div id="plotwrap">
+  <div id="chart"></div>
+  <aside id="serieslist"></aside>
+</div>
 
 <footer>
-  <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> to reset ·
-  <b>click a point</b> to open that commit on GitHub · <b>click a legend entry</b> to show only that
-  series, then <b>click more</b> to add them (click a selected one to drop it; double-click to show all)
-  — the selection is saved in the URL. Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
+  <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> the plot to reset zoom ·
+  <b>click a point</b> to open its PR/commit on GitHub. In the <b>series</b> list on the right:
+  <b>click a name</b> to show only that line, then <b>click more</b> to add them (click a shown one to
+  drop it); <b>✕</b> hides a single line; <b>show all</b> resets — the selection is saved in the URL.
+  Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
 </footer>
 
 <script>
@@ -256,6 +280,67 @@ function buildOverview() {
   });
 }
 
+// ---- series side-panel (our legend + hide/focus control) ---------------
+// state.sel is a whitelist of shown series (null = all shown). The panel and the
+// plot's `visible` flags both derive from it, so they stay in sync and share the
+// URL. curNames = every series in the current view (for building a "hide"
+// complement when nothing is selected yet).
+let curNames = [];
+
+function focusSeries(name) {          // click a name: isolate, then accumulate/drop
+  let sel = state.sel ? state.sel.slice() : null;
+  if (!sel) sel = [name];                                     // first: show only this
+  else if (sel.includes(name)) {                             // shown already: drop it
+    sel = sel.filter(n => n !== name);
+    if (!sel.length) sel = null;                             // none left: show all
+  } else sel.push(name);                                      // add to the shown set
+  state.sel = sel; render(); pushHash();
+}
+
+function hideSeries(name) {           // ✕: disable just this one line
+  let sel = state.sel && state.sel.length ? state.sel.slice() : null;
+  sel = (sel || curNames).filter(n => n !== name);            // all shown -> complement
+  if (!sel.length) sel = null;                                // hid the last one: show all
+  state.sel = sel; render(); pushHash();
+}
+
+function renderPanel(traces, activeSel) {
+  const box = el("serieslist");
+  box.replaceChildren();
+  const head = document.createElement("div");
+  head.className = "plhead";
+  const lbl = document.createElement("span");
+  const shownN = traces.filter(t => !activeSel || activeSel.has(t.name)).length;
+  lbl.textContent = activeSel ? `${shownN} / ${traces.length} shown` : `series (${traces.length})`;
+  const all = document.createElement("button");
+  all.textContent = "show all"; all.disabled = !activeSel;
+  all.onclick = () => { state.sel = null; render(); pushHash(); };
+  head.append(lbl, all);
+  box.appendChild(head);
+
+  for (const t of traces) {
+    const shown = !activeSel || activeSel.has(t.name);
+    const row = document.createElement("div");
+    row.className = "srow" + (shown ? "" : " off");
+    row.title = shown ? "click: show only this / add · ✕: hide this line"
+                      : "click to show this line";
+    const sw = document.createElement("span");
+    sw.className = "sw"; sw.style.borderColor = t.line.color;
+    sw.style.background = t.line.color;
+    const nm = document.createElement("span");
+    nm.className = "nm"; nm.textContent = t.name;
+    row.append(sw, nm);
+    row.onclick = () => focusSeries(t.name);
+    if (shown) {
+      const x = document.createElement("span");
+      x.className = "x"; x.textContent = "✕"; x.title = "hide this line";
+      x.onclick = e => { e.stopPropagation(); hideSeries(t.name); };
+      row.appendChild(x);
+    }
+    box.appendChild(row);
+  }
+}
+
 // ---- render ------------------------------------------------------------
 let inited = false;
 function render() {
@@ -282,6 +367,7 @@ function render() {
   let activeSel = state.sel && state.sel.length ? new Set(state.sel) : null;
   if (activeSel && !traces.some(t => activeSel.has(t.name))) { state.sel = null; activeSel = null; }
   traces.forEach(t => { t.visible = !activeSel || activeSel.has(t.name) ? true : "legendonly"; });
+  curNames = traces.map(t => t.name);
 
   const shapes = [], annotations = [];
   if (hasBug) {
@@ -306,10 +392,8 @@ function render() {
              gridcolor: "#f0f0f0", zeroline: false },
     yaxis: { type: state.scale, title: { text: ytitle }, gridcolor: "#eee",
              zeroline: false, ticks: "outside", autorange: true },
-    // itemclick/doubleclick false: disable Plotly's built-in toggle so our custom
-    // accumulate-selection handlers fully own legend clicks (the event still fires).
-    legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left",
-              itemclick: false, itemdoubleclick: false },
+    // Our #serieslist panel is the legend + focus/hide control, so hide Plotly's.
+    showlegend: false,
     shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
   };
   const config = { responsive: true, scrollZoom: true, displaylogo: false,
@@ -318,33 +402,11 @@ function render() {
 
   const div = el("chart");
   Plotly.react(div, traces, layout, config);
+  renderPanel(traces, activeSel);
   if (!inited) {
     div.on("plotly_click", ev => {
       const url = ev.points?.[0]?.customdata?.[4];
       if (url) window.open(url, "_blank", "noopener");
-    });
-    // Custom legend selection (built-in modes can't accumulate): the first click
-    // isolates a series; each further click adds/removes one; removing the last
-    // one — or a double-click — shows everything again. Persisted in the URL.
-    // Deferred to a microtask + return false so Plotly's own toggle is skipped.
-    div.on("plotly_legendclick", ev => {
-      const name = div.data[ev.curveNumber]?.name;
-      if (name != null) {
-        let sel = state.sel ? state.sel.slice() : null;
-        if (!sel) sel = [name];                                   // first: isolate
-        else if (sel.includes(name)) {                            // click again: drop
-          sel = sel.filter(n => n !== name);
-          if (!sel.length) sel = null;                            // none left: show all
-        } else sel.push(name);                                    // add to selection
-        state.sel = sel;
-        setTimeout(() => { render(); pushHash(); }, 0);
-      }
-      return false;
-    });
-    div.on("plotly_legenddoubleclick", () => {
-      state.sel = null;
-      setTimeout(() => { render(); pushHash(); }, 0);
-      return false;
     });
     inited = true;
   }
