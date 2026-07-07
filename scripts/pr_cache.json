@@ -1,207 +1,182 @@
 {
- "04beab3b29e2b4b7438624e07cd2a004d9e97185": {
-  "number": 2889,
-  "title": "Paul.masurel/2879 nested cardinality perf",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2889"
- },
- "18fedd93849c8c2add4c177c15d5f190d91e18f8": {
-  "number": 2842,
-  "title": "Use sketches-ddsketch fork with Java-compatible binary encoding",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2842"
- },
- "1e859fd78d71986a7d53bc096b0fd27bfa91aec2": {
-  "number": 2965,
-  "title": "fix term aggregation u32::MAX overflow issue",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2965"
- },
- "2340dca6288b9f1505096c5d4b1e5a73270af58e": {
-  "number": 2699,
-  "title": "fix compiler warnings",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2699"
- },
- "2e16243f9a9fd15cd147d505c661077a57711d54": {
-  "number": 2906,
-  "title": "fix memory consumption for histogram",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2906"
- },
- "348ca1e3097e807cd27ebc08adf69941f2b97e8e": {
-  "number": 2983,
-  "title": "try to use select-nth instead of full sort in segment level agg top-k selection",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2983"
- },
- "3859cc8699ccce685ca4900711af02f28f761310": {
-  "number": 2854,
-  "title": "fix: deduplicate doc counts in term aggregation for multi-valued fields",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2854"
- },
- "3cd9011f874ff6ceef22d30cced94ac600afed5e": {
-  "number": 2890,
-  "title": "Make aggregation/collector fields public for tantivy-datafusion",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2890"
- },
- "46b3fb9ed394343db77aaf02e421272044818c0a": {
-  "number": 2936,
-  "title": "Relying on upstream version of datasketch and stop using HLL 4.",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2936"
- },
- "4a89e74597f2167429eb8865ad627de50e78767f": {
-  "number": 2823,
-  "title": "Fix rfc3339 typos and add Claude Code skills",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2823"
- },
- "4fbae9218757247f919cb125e8a2a19a64d9f5e6": {
-  "number": 2910,
-  "title": "Composite aggregations: send after key on last page",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2910"
- },
- "545169c0d843369be126c603dd4d4a18dae3af93": {
-  "number": 2856,
-  "title": "Composite agg merge",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2856"
- },
- "58aa4b707433a379b0ae716f29b0feff9c2479fc": {
-  "number": 2893,
-  "title": "Fix cardinality aggregation using invalid coupons",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2893"
- },
- "60225bdd459dd3fd68cd5b1f70abb77ef8f92d71": {
-  "number": 2724,
-  "title": "cleanup",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2724"
- },
- "63c66005dbb2ed02a938a17b1f629b37cc3e3571": {
-  "number": 2726,
-  "title": "Lazy scorers",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2726"
- },
- "65b5a1a306487d7eb0192496ae0f16ec7d6098c3": {
-  "number": 2759,
-  "title": "one collector per agg request instead per bucket",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2759"
- },
- "698f073f880e36f6c09130f7e6f74ddb56f01bf8": {
-  "number": 2837,
-  "title": "Replace hyperloglogplus with Apache DataSketches HLL (lg_k=11)",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2837"
- },
- "6b8bd7b8847c87686117a0e3a400bd6377afb8fd": {
-  "number": 2987,
-  "title": "make BucketId optional in aggregations",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2987"
- },
- "70e591e2306e8c3a87d65f0690030fed978efe3c": {
-  "number": 2711,
-  "title": "feat: added filter aggregation",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2711"
- },
- "715590b357d7191312285c124b30d44eea6c943c": {
-  "number": 2983,
-  "title": "try to use select-nth instead of full sort in segment level agg top-k selection",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2983"
- },
- "73ad18fa1e3ad117a8011d8933e2b25558f821e0": {
-  "number": 2907,
-  "title": "fix: Add space for missing sentinel in allowed bitset when a missing key is provided",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2907"
- },
- "74a510cb56bcbdfa1efb28c333b37d05990b022b": {
-  "number": 2983,
-  "title": "try to use select-nth instead of full sort in segment level agg top-k selection",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2983"
- },
- "7eca33143e199eb357f6be6b11b8089a9b0fafb2": {
-  "number": 2837,
-  "title": "Replace hyperloglogplus with Apache DataSketches HLL (lg_k=11)",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2837"
- },
- "811c68cdb2c736986c319bfc2ee3d5f9ba5847ce": {
-  "number": 2675,
-  "title": "fix field_names in top_hits aggregation",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2675"
- },
- "938bfec8b79ce79b06806a5d7b627634b911ab55": {
-  "number": 2722,
-  "title": "use FxHashMap for Aggregations Request",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2722"
- },
- "945af922d1a0f98d7b216d6487d2e216427fe8c5": {
-  "number": 2661,
-  "title": "clippy",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2661"
- },
- "a9535156b1bafd4aefe6fa44fb3e256ee80460f0": {
-  "number": 2860,
-  "title": "Fix clippy warnings: deprecated gen_range, manual div_ceil, legacy import",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2860"
- },
- "b19f0ddc77e71f49607985915fa49a8ed1d69c7d": {
-  "number": 2926,
-  "title": "cleanup AggregationsSegmentCtx",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2926"
- },
- "bb141abe22671474f4912075e2f969c249684289": {
-  "number": 2829,
-  "title": "add intermediate result accessors",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2829"
- },
- "c096b2ad8948055d73c948b5e29b5bbd44757510": {
-  "number": 2957,
-  "title": "2x faster terms \u00d7 histogram aggregation via a specialized collector",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2957"
- },
- "c363bbd23d207ec639a52a46f081f0fa32c11a67": {
-  "number": 2740,
-  "title": "Optimize term aggregation with low cardinality + some refactoring",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2740"
- },
- "ca139d8eb1259f8a351a93d62e6215caee5088bd": {
-  "number": 2910,
-  "title": "Composite aggregations: send after key on last page",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2910"
- },
- "cf760fd5b6f10b5e327449aa3003b14142a88000": {
-  "number": 2842,
-  "title": "Use sketches-ddsketch fork with Java-compatible binary encoding",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2842"
- },
- "d410a3b0c03d552722b0ea87ff8f434f1d9dbf5f": {
-  "number": 2717,
-  "title": "Add Filtering for Term Aggregations",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2717"
- },
- "d47abdf1041a1525aa02d68e34377fca8abe6dc2": {
-  "number": 2916,
-  "title": "Cut off for order by sub agg in term agg after segment collection",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2916"
- },
- "d99a5d4e91dc7a4c4a3b18a27ab97d6bc7fb6479": {
-  "number": 2768,
-  "title": "fix: added field validation helper for aggregations",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2768"
- },
- "dabcaa58093a3f7f10e98a5a3b06cfe2370482f9": {
-  "number": 2719,
-  "title": "fix merge intermediate aggregation results",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2719"
- },
- "edfb02b47e4b061ab25d96e26792e84d3af78ef0": {
-  "number": 2922,
-  "title": "perf: use bitset in cardinality aggregation",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2922"
- },
- "f1c29ba9724162a9c61b9dd00103e4a98052f12a": {
-  "number": 2829,
-  "title": "add intermediate result accessors",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2829"
- },
- "f88b7200b25720e47b9b94bc5cf69bd29e40a860": {
-  "number": 2745,
-  "title": "Optimization when posting list are saturated.",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2745"
- },
- "fc93391d0ed205fd320ddcbc6f774da0010ca486": {
-  "number": 2716,
-  "title": "Minor clarifications on the AggregationsWithAccessor refacto",
-  "url": "https://github.com/quickwit-oss/tantivy/pull/2716"
+ "_v": 2,
+ "commits": {
+  "04beab3b29e2b4b7438624e07cd2a004d9e97185": {
+   "number": 2889,
+   "title": "Paul.masurel/2879 nested cardinality perf",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2889"
+  },
+  "18fedd93849c8c2add4c177c15d5f190d91e18f8": {
+   "number": 2842,
+   "title": "Use sketches-ddsketch fork with Java-compatible binary encoding",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2842"
+  },
+  "1e859fd78d71986a7d53bc096b0fd27bfa91aec2": {
+   "number": 2965,
+   "title": "fix term aggregation u32::MAX overflow issue",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2965"
+  },
+  "2340dca6288b9f1505096c5d4b1e5a73270af58e": {
+   "number": 2699,
+   "title": "fix compiler warnings",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2699"
+  },
+  "2e16243f9a9fd15cd147d505c661077a57711d54": {
+   "number": 2906,
+   "title": "fix memory consumption for histogram",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2906"
+  },
+  "348ca1e3097e807cd27ebc08adf69941f2b97e8e": null,
+  "3859cc8699ccce685ca4900711af02f28f761310": {
+   "number": 2854,
+   "title": "fix: deduplicate doc counts in term aggregation for multi-valued fields",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2854"
+  },
+  "3cd9011f874ff6ceef22d30cced94ac600afed5e": {
+   "number": 2890,
+   "title": "Make aggregation/collector fields public for tantivy-datafusion",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2890"
+  },
+  "46b3fb9ed394343db77aaf02e421272044818c0a": {
+   "number": 2936,
+   "title": "Relying on upstream version of datasketch and stop using HLL 4.",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2936"
+  },
+  "4a89e74597f2167429eb8865ad627de50e78767f": {
+   "number": 2823,
+   "title": "Fix rfc3339 typos and add Claude Code skills",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2823"
+  },
+  "4fbae9218757247f919cb125e8a2a19a64d9f5e6": null,
+  "545169c0d843369be126c603dd4d4a18dae3af93": {
+   "number": 2856,
+   "title": "Composite agg merge",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2856"
+  },
+  "58aa4b707433a379b0ae716f29b0feff9c2479fc": {
+   "number": 2893,
+   "title": "Fix cardinality aggregation using invalid coupons",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2893"
+  },
+  "60225bdd459dd3fd68cd5b1f70abb77ef8f92d71": {
+   "number": 2724,
+   "title": "cleanup",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2724"
+  },
+  "63c66005dbb2ed02a938a17b1f629b37cc3e3571": {
+   "number": 2726,
+   "title": "Lazy scorers",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2726"
+  },
+  "65b5a1a306487d7eb0192496ae0f16ec7d6098c3": {
+   "number": 2759,
+   "title": "one collector per agg request instead per bucket",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2759"
+  },
+  "698f073f880e36f6c09130f7e6f74ddb56f01bf8": null,
+  "6b8bd7b8847c87686117a0e3a400bd6377afb8fd": {
+   "number": 2987,
+   "title": "make BucketId optional in aggregations",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2987"
+  },
+  "70e591e2306e8c3a87d65f0690030fed978efe3c": {
+   "number": 2711,
+   "title": "feat: added filter aggregation",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2711"
+  },
+  "715590b357d7191312285c124b30d44eea6c943c": {
+   "number": 2983,
+   "title": "try to use select-nth instead of full sort in segment level agg top-k selection",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2983"
+  },
+  "73ad18fa1e3ad117a8011d8933e2b25558f821e0": {
+   "number": 2907,
+   "title": "fix: Add space for missing sentinel in allowed bitset when a missing key is provided",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2907"
+  },
+  "74a510cb56bcbdfa1efb28c333b37d05990b022b": null,
+  "7eca33143e199eb357f6be6b11b8089a9b0fafb2": {
+   "number": 2837,
+   "title": "Replace hyperloglogplus with Apache DataSketches HLL (lg_k=11)",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2837"
+  },
+  "811c68cdb2c736986c319bfc2ee3d5f9ba5847ce": {
+   "number": 2675,
+   "title": "fix field_names in top_hits aggregation",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2675"
+  },
+  "938bfec8b79ce79b06806a5d7b627634b911ab55": {
+   "number": 2722,
+   "title": "use FxHashMap for Aggregations Request",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2722"
+  },
+  "945af922d1a0f98d7b216d6487d2e216427fe8c5": {
+   "number": 2661,
+   "title": "clippy",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2661"
+  },
+  "a9535156b1bafd4aefe6fa44fb3e256ee80460f0": {
+   "number": 2860,
+   "title": "Fix clippy warnings: deprecated gen_range, manual div_ceil, legacy import",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2860"
+  },
+  "b19f0ddc77e71f49607985915fa49a8ed1d69c7d": {
+   "number": 2926,
+   "title": "cleanup AggregationsSegmentCtx",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2926"
+  },
+  "bb141abe22671474f4912075e2f969c249684289": {
+   "number": 2829,
+   "title": "add intermediate result accessors",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2829"
+  },
+  "c096b2ad8948055d73c948b5e29b5bbd44757510": {
+   "number": 2957,
+   "title": "2x faster terms \u00d7 histogram aggregation via a specialized collector",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2957"
+  },
+  "c363bbd23d207ec639a52a46f081f0fa32c11a67": {
+   "number": 2740,
+   "title": "Optimize term aggregation with low cardinality + some refactoring",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2740"
+  },
+  "ca139d8eb1259f8a351a93d62e6215caee5088bd": null,
+  "cf760fd5b6f10b5e327449aa3003b14142a88000": null,
+  "d410a3b0c03d552722b0ea87ff8f434f1d9dbf5f": {
+   "number": 2717,
+   "title": "Add Filtering for Term Aggregations",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2717"
+  },
+  "d47abdf1041a1525aa02d68e34377fca8abe6dc2": {
+   "number": 2916,
+   "title": "Cut off for order by sub agg in term agg after segment collection",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2916"
+  },
+  "d99a5d4e91dc7a4c4a3b18a27ab97d6bc7fb6479": {
+   "number": 2768,
+   "title": "fix: added field validation helper for aggregations",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2768"
+  },
+  "dabcaa58093a3f7f10e98a5a3b06cfe2370482f9": {
+   "number": 2719,
+   "title": "fix merge intermediate aggregation results",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2719"
+  },
+  "edfb02b47e4b061ab25d96e26792e84d3af78ef0": {
+   "number": 2922,
+   "title": "perf: use bitset in cardinality aggregation",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2922"
+  },
+  "f1c29ba9724162a9c61b9dd00103e4a98052f12a": null,
+  "f88b7200b25720e47b9b94bc5cf69bd29e40a860": {
+   "number": 2745,
+   "title": "Optimization when posting list are saturated.",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2745"
+  },
+  "fc93391d0ed205fd320ddcbc6f774da0010ca486": {
+   "number": 2716,
+   "title": "Minor clarifications on the AggregationsWithAccessor refacto",
+   "url": "https://github.com/quickwit-oss/tantivy/pull/2716"
+  }
  }
 }

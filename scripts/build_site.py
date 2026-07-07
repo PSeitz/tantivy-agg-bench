@@ -38,9 +38,12 @@ METRICS = ["median_ns", "avg_memory"]
 
 SEP = "\x1f"  # unit separator: safe delimiter for git --format fields
 
-# Commit -> PR is immutable once merged, so we cache it (keyed by full SHA) and
-# commit the cache: rebuilds are then reproducible and work offline.
+# A commit's PR-tip decision is immutable once merged, so we cache it (keyed by
+# full SHA) and commit the cache: rebuilds are then reproducible and work offline.
+# Bump the version whenever the decision's *meaning* changes so stale caches are
+# ignored and regenerated. v2: link only the PR's tip commit (see pr_tip_for_commit).
 PR_CACHE = os.path.join(HERE, "pr_cache.json")
+PR_CACHE_VERSION = 2
 
 
 def category(name):
@@ -86,48 +89,96 @@ def repo_slug(base_url):
 def load_pr_cache():
     if os.path.exists(PR_CACHE):
         try:
-            return json.load(open(PR_CACHE))
+            blob = json.load(open(PR_CACHE))
+            if blob.get("_v") == PR_CACHE_VERSION:
+                return blob.get("commits", {})
         except (json.JSONDecodeError, OSError):
             pass
-    return {}
+    return {}  # missing / old version -> regenerate
 
 
-def pr_for_commit(slug, full, cache, state):
-    """The merged PR that introduced `full`, as {number,title,url}, or None.
-
-    Uses GitHub's "PRs associated with a commit" endpoint via `gh`. A merged
-    commit's PR never changes, so results (incl. a genuine "no PR" -> None) are
-    cached; transient gh failures are not cached so they retry next build.
-    """
-    if full in cache:
-        return cache[full]
+def gh_json(endpoint, state, ctx):
+    """`gh api <endpoint>` parsed as JSON, or None on any failure (transient)."""
     if not state["gh_ok"]:
         return None
     try:
-        r = subprocess.run(
-            ["gh", "api", f"repos/{slug}/commits/{full}/pulls",
-             "-H", "Accept: application/vnd.github+json"],
-            capture_output=True, text=True)
+        r = subprocess.run(["gh", "api", endpoint], capture_output=True, text=True)
     except FileNotFoundError:
         state["gh_ok"] = False
         print("warn: gh CLI not found; skipping PR resolution (links -> commits)")
         return None
     if r.returncode != 0:
         tail = (r.stderr.strip().splitlines() or ["?"])[-1]
-        print(f"warn: gh api failed for {full[:8]}: {tail}")
-        return None  # transient -> don't cache
+        print(f"warn: gh api failed ({ctx}): {tail}")
+        return None
     try:
-        prs = json.loads(r.stdout)
+        return json.loads(r.stdout)
     except json.JSONDecodeError:
         return None
+
+
+def commit_parents(repo, sha, slug, state):
+    """Parent SHAs of `sha` -- local git first (fast/offline), gh as fallback."""
+    r = subprocess.run(["git", "-C", repo, "rev-list", "--parents", "-n", "1", sha],
+                       capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.split()[1:]
+    obj = gh_json(f"repos/{slug}/commits/{sha}", state, f"parents {sha[:8]}")
+    if isinstance(obj, dict) and isinstance(obj.get("parents"), list):
+        return [p["sha"] for p in obj["parents"]]
+    return None
+
+
+def pr_representative(repo, slug, pr, rep_cache, state):
+    """A PR's representative ('last') commit on the default branch.
+
+    Squash/rebase merges: the merge_commit_sha itself (the squashed commit, or the
+    tip of the rebased range). Merge-commit merges: the branch head = the merge
+    commit's 2nd parent (the merge_commit_sha is the "Merge pull request" commit,
+    not a real change). Returns None if it can't be determined (retry next build).
+    """
+    n = pr["number"]
+    if n in rep_cache:
+        return rep_cache[n]
+    msc = pr.get("merge_commit_sha")
+    if not msc:
+        return None
+    ps = commit_parents(repo, msc, slug, state)
+    if ps is None:
+        return None
+    rep = ps[1] if len(ps) == 2 else msc
+    rep_cache[n] = rep
+    return rep
+
+
+def pr_tip_for_commit(slug, repo, full, cache, rep_cache, state):
+    """The PR that `full` is the TIP of, as {number,title,url}, or None.
+
+    Resolves the PR via GitHub's "PRs associated with a commit" endpoint, then
+    links only when `full` is that PR's representative tip (see pr_representative).
+    Intermediate commits of a PR return None and keep a plain commit link, instead
+    of every commit of a multi-commit PR collapsing onto the same whole-PR link.
+    Decisions are cached (incl. genuine None); transient gh failures aren't cached
+    so they retry next build.
+    """
+    if full in cache:
+        return cache[full]
+    prs = gh_json(f"repos/{slug}/commits/{full}/pulls", state, f"pulls {full[:8]}")
+    if prs is None:
+        return None  # transient / gh missing -> don't cache
     merged = [p for p in prs if p.get("merged_at")]
     chosen = merged or prs
+    if not chosen:
+        cache[full] = None  # genuinely no PR
+        return None
+    p = chosen[0]
     if len(merged) > 1:
-        print(f"note: {full[:8]} in {len(merged)} merged PRs; using #{merged[0]['number']}")
-    pr = None
-    if chosen:
-        p = chosen[0]
-        pr = {"number": p["number"], "title": p["title"], "url": p["html_url"]}
+        print(f"note: {full[:8]} in {len(merged)} merged PRs; using #{p['number']}")
+    rep = pr_representative(repo, slug, p, rep_cache, state)
+    if rep is None:
+        return None  # couldn't resolve tip -> retry next build
+    pr = ({"number": p["number"], "title": p["title"], "url": p["html_url"]}
+          if full == rep else None)
     cache[full] = pr
     return pr
 
@@ -190,16 +241,19 @@ def main():
     # One commit per committer-day -> date orders them; tie-break on short hash.
     order = sorted(runs.values(), key=lambda r: (r["date"], r["short"]))
 
-    # Resolve each commit's PR (the tested commit is usually a PR's tip, so the
-    # PR groups the whole change) -> link there instead of the bare commit.
+    # Link a point to its PR only when the tested commit is that PR's tip (the PR
+    # then groups the whole change); intermediate commits keep a plain commit link
+    # so a multi-commit PR doesn't have several points all pointing at the same PR.
     slug = repo_slug(base_url)
     cache = {} if args.no_pr else load_pr_cache()
+    rep_cache = {}
     state = {"gh_ok": not args.no_pr}
     commits = []
     npr = 0
     for r in order:
         c = {k: r[k] for k in ("short", "full", "date", "author", "subject", "url")}
-        pr = None if args.no_pr else pr_for_commit(slug, r["full"], cache, state)
+        pr = (None if args.no_pr else
+              pr_tip_for_commit(slug, args.repo, r["full"], cache, rep_cache, state))
         if pr:
             c["pr"] = pr
             npr += 1
@@ -207,7 +261,8 @@ def main():
     if not args.no_pr:
         try:
             with open(PR_CACHE, "w") as f:
-                json.dump(cache, f, indent=1, sort_keys=True)
+                json.dump({"_v": PR_CACHE_VERSION, "commits": cache}, f,
+                          indent=1, sort_keys=True)
         except OSError as e:
             print(f"warn: could not write {PR_CACHE}: {e}")
 
