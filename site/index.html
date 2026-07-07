@@ -37,7 +37,7 @@
   <h1>tantivy aggregation performance over time</h1>
   <div class="sub">
     <span id="meta"></span> ·
-    log&nbsp;y-axis · shaded band = the
+    shaded band = the
     <a href="https://github.com/quickwit-oss/tantivy/pull/2759" target="_blank" rel="noopener">#2759</a>
     quadratic-regression window (2026-01-06 → 2026-04-21, fixed thereafter).
   </div>
@@ -69,6 +69,13 @@
     <div class="seg" id="metric">
       <button data-m="median_ns">Latency</button>
       <button data-m="avg_memory">Memory</button>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>Y-axis</label>
+    <div class="seg" id="scale">
+      <button data-s="log">Log</button>
+      <button data-s="linear">Linear</button>
     </div>
   </div>
 </div>
@@ -104,7 +111,7 @@ let bugI = D.commits.reduce((a, c, i) =>
 const hasBug = bugI[0] <= bugI[1];
 
 const state = { view: "overview", bench: null, cat: null,
-                card: "full", metric: "median_ns" };
+                card: "full", metric: "median_ns", scale: "log" };
 
 // ---- controls ----------------------------------------------------------
 const el = id => document.getElementById(id);
@@ -138,13 +145,14 @@ document.getElementById("meta").textContent =
 
 function segInit(id, key) {
   el(id).querySelectorAll("button").forEach(b => {
-    const val = b.dataset.v ?? b.dataset.m;
+    const val = b.dataset.v ?? b.dataset.m ?? b.dataset.s;
     b.onclick = () => { state[key] = val; syncSegs(); render(); pushHash(); };
   });
 }
 function syncSegs() {
   el("view").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === state.view));
   el("metric").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === state.metric));
+  el("scale").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.s === state.scale));
   el("ctl-bench").classList.toggle("hidden", state.view !== "bench");
   el("ctl-cat").classList.toggle("hidden", state.view !== "category");
   // per-benchmark shows all cardinalities as traces, so its selector is hidden.
@@ -152,6 +160,7 @@ function syncSegs() {
 }
 segInit("view", "view");
 segInit("metric", "metric");
+segInit("scale", "scale");
 el("bench").onchange = e => { state.bench = e.target.value; render(); pushHash(); };
 el("cat").onchange   = e => { state.cat = e.target.value; render(); pushHash(); };
 el("card").onchange  = e => { state.card = e.target.value; render(); pushHash(); };
@@ -159,7 +168,7 @@ el("card").onchange  = e => { state.card = e.target.value; render(); pushHash();
 // ---- shareable URL hash ------------------------------------------------
 function pushHash() {
   const p = new URLSearchParams();
-  p.set("view", state.view); p.set("metric", state.metric);
+  p.set("view", state.view); p.set("metric", state.metric); p.set("scale", state.scale);
   if (state.view === "bench") p.set("bench", state.bench);
   if (state.view === "category") p.set("cat", state.cat);
   if (state.view !== "bench") p.set("card", state.card);
@@ -169,6 +178,7 @@ function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   if (p.get("view")) state.view = p.get("view");
   if (p.get("metric")) state.metric = p.get("metric");
+  if (p.get("scale") === "log" || p.get("scale") === "linear") state.scale = p.get("scale");
   if (p.get("bench") && D.benches.includes(p.get("bench"))) state.bench = p.get("bench");
   if (p.get("cat")) state.cat = p.get("cat");
   if (p.get("card") && D.cardinalities.includes(p.get("card"))) state.card = p.get("card");
@@ -271,8 +281,8 @@ function render() {
     xaxis: { tickmode: "array", tickvals: X, ticktext: TICKTEXT, tickangle: -90,
              tickfont: { size: 9 }, range: [-0.6, N - 0.4], showgrid: true,
              gridcolor: "#f0f0f0", zeroline: false },
-    yaxis: { type: "log", title: { text: ytitle }, gridcolor: "#eee", zeroline: false,
-             ticks: "outside" },
+    yaxis: { type: state.scale, title: { text: ytitle }, gridcolor: "#eee",
+             zeroline: false, ticks: "outside", autorange: true },
     legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left" },
     shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
   };
