@@ -87,7 +87,6 @@ rustc_v=$(rustc --version 2>/dev/null || echo unknown)
 
 esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }   # minimal JSON string escaping
 
-first=1
 count=0
 {
   printf '{\n'
@@ -100,20 +99,27 @@ count=0
   printf '  "filter": %s,\n' "$( [ -n "${FILTER:-}" ] && printf '"%s"' "$(esc "$FILTER")" || printf 'null' )"
   printf '  "system": { "os": "%s", "arch": "%s", "cpu": "%s", "rustc": "%s" },\n' \
          "$(esc "$os")" "$(esc "$arch")" "$(esc "$cpu")" "$(esc "$rustc_v")"
+  # Nest by cardinality: benchmarks.<cardinality>.<bench> = {stats}. binggan
+  # names files "_<cardinality>_<bench>" (empty runner name -> leading _).
   printf '  "benchmarks": {\n'
-  for f in "$bh"/*; do
-    [ -f "$f" ] || continue
-    base=${f##*/}; name=${base#_}                 # strip leading _ (empty runner name)
-    case "$name" in                               # split "<input>_<bench>" -> "<input>/<bench>"
-      full_*)       key="full/${name#full_}";;
-      dense_*)      key="dense/${name#dense_}";;
-      sparse_*)     key="sparse/${name#sparse_}";;
-      multivalue_*) key="multivalue/${name#multivalue_}";;
-      *)            key="$name";;
-    esac
-    [ $first -eq 0 ] && printf ',\n'
-    printf '    "%s": %s' "$key" "$(head -n1 "$f")"
-    first=0; count=$((count + 1))
+  first_card=1
+  for card in full dense sparse multivalue; do
+    prefix="_${card}_"
+    # skip a cardinality with no result files (e.g. FILTER matched nothing)
+    have=0; for f in "$bh/$prefix"*; do [ -f "$f" ] && { have=1; break; }; done
+    [ $have -eq 0 ] && continue
+    [ $first_card -eq 0 ] && printf ',\n'
+    printf '    "%s": {\n' "$card"
+    first_bench=1
+    for f in "$bh/$prefix"*; do
+      [ -f "$f" ] || continue
+      bench=${f##*/}; bench=${bench#"$prefix"}   # "_<card>_<bench>" -> "<bench>"
+      [ $first_bench -eq 0 ] && printf ',\n'
+      printf '      "%s": %s' "$bench" "$(head -n1 "$f")"
+      first_bench=0; count=$((count + 1))
+    done
+    printf '\n    }'
+    first_card=0
   done
   printf '\n  }\n'
   printf '}\n'

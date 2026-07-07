@@ -17,12 +17,30 @@ pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
 
 /// Mini macro to register a function via its name
 /// runner.register("average_u64", move |index| average_u64(index));
+///
+/// Skips registration if the name matches $SKIP_BENCHES (see `skip_bench`), so
+/// individual benches can be excluded per run without a filter change.
 macro_rules! register {
     ($runner:expr, $func:ident) => {
-        $runner.register(stringify!($func), move |index| {
-            $func(index);
-        })
+        if !skip_bench(stringify!($func)) {
+            $runner.register(stringify!($func), move |index| {
+                $func(index);
+            });
+        }
     };
+}
+
+/// A bench is skipped when its name contains any comma-separated substring in
+/// $SKIP_BENCHES. Used to drop the heavy quadratic `terms_many_with_single_term
+/// _*_order_by_card` benches (~57s each) on the buggy #2759 commits
+/// (2026-01-06..04-21), where they only re-confirm the known ~57s plateau.
+fn skip_bench(name: &str) -> bool {
+    std::env::var("SKIP_BENCHES").is_ok_and(|v| {
+        v.split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .any(|pat| name.contains(pat))
+    })
 }
 
 fn main() {

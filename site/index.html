@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tantivy aggregation perf over time</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="data.js"></script>
+<style>
+  :root { --fg:#1a1a1a; --muted:#666; --line:#e3e3e3; --bg:#fafafa; --accent:#b00; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+         color:var(--fg); background:var(--bg); }
+  header { padding:14px 20px 10px; border-bottom:1px solid var(--line); background:#fff; }
+  h1 { margin:0 0 3px; font-size:17px; font-weight:650; }
+  header .sub { color:var(--muted); font-size:12.5px; }
+  header .sub a { color:var(--accent); text-decoration:none; }
+  header .sub a:hover { text-decoration:underline; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px 22px; align-items:flex-end;
+              padding:11px 20px; border-bottom:1px solid var(--line); background:#fff; }
+  .ctl { display:flex; flex-direction:column; gap:3px; }
+  .ctl label { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .ctl select { font-size:13.5px; padding:5px 7px; border:1px solid #ccc; border-radius:6px; background:#fff; min-width:150px; }
+  .seg { display:inline-flex; border:1px solid #ccc; border-radius:6px; overflow:hidden; }
+  .seg button { border:0; background:#fff; padding:6px 12px; font-size:13px; cursor:pointer; color:var(--fg); }
+  .seg button + button { border-left:1px solid #ccc; }
+  .seg button.on { background:var(--fg); color:#fff; }
+  .ctl.hidden { display:none; }
+  #chart { width:100%; height:calc(100vh - 210px); min-height:440px; }
+  footer { color:var(--muted); font-size:12px; padding:8px 20px 14px; }
+  footer b { color:var(--fg); font-weight:600; }
+  kbd { font:11px monospace; background:#eee; border:1px solid #ddd; border-radius:3px; padding:0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>tantivy aggregation performance over time</h1>
+  <div class="sub">
+    <span id="meta"></span> ·
+    log&nbsp;y-axis · shaded band = the
+    <a href="https://github.com/quickwit-oss/tantivy/pull/2759" target="_blank" rel="noopener">#2759</a>
+    quadratic-regression window (2026-01-06 → 2026-04-21, fixed thereafter).
+  </div>
+</header>
+
+<div class="controls">
+  <div class="ctl">
+    <label>View</label>
+    <div class="seg" id="view">
+      <button data-v="overview">Overview</button>
+      <button data-v="category">Per category</button>
+      <button data-v="bench">Per benchmark</button>
+    </div>
+  </div>
+  <div class="ctl hidden" id="ctl-bench">
+    <label>Benchmark</label>
+    <select id="bench"></select>
+  </div>
+  <div class="ctl hidden" id="ctl-cat">
+    <label>Category</label>
+    <select id="cat"></select>
+  </div>
+  <div class="ctl" id="ctl-card">
+    <label>Cardinality</label>
+    <select id="card"></select>
+  </div>
+  <div class="ctl">
+    <label>Metric</label>
+    <div class="seg" id="metric">
+      <button data-m="median_ns">Latency</button>
+      <button data-m="avg_memory">Memory</button>
+    </div>
+  </div>
+</div>
+
+<div id="chart"></div>
+
+<footer>
+  <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> to reset ·
+  <b>click a point</b> to open that commit on GitHub · <b>click a legend entry</b> to toggle a series
+  (double-click to isolate). Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
+</footer>
+
+<script>
+const D = window.BENCH_DATA;
+const METRICS = {
+  median_ns:  { div: 1e6,  unit: "ms",  label: "median latency (ms)" },
+  avg_memory: { div: 1024, unit: "KiB", label: "avg memory (KiB)" },
+};
+const N = D.commits.length;
+const X = D.commits.map((_, i) => i);
+const TICKTEXT = D.commits.map(c => `${c.date}  ${c.short}`);
+// customdata per point: [short, subject, date, author, url] — shared by every trace.
+const CUSTOM = D.commits.map(c => [c.short, c.subject, c.date, c.author, c.url]);
+const PALETTE = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b",
+  "#e377c2","#7f7f7f","#bcbd22","#17becf","#393b79","#637939","#8c6d31",
+  "#843c39","#7b4173","#3182bd","#e6550d","#31a354","#756bb1","#636363",
+  "#6baed6","#fd8d3c","#74c476","#9e9ac8"];
+
+// #2759 buggy commit index range (for the shaded band).
+let bugI = D.commits.reduce((a, c, i) =>
+  (c.date >= D.bug_window[0] && c.date < D.bug_window[1])
+    ? [Math.min(a[0], i), Math.max(a[1], i)] : a, [Infinity, -Infinity]);
+const hasBug = bugI[0] <= bugI[1];
+
+const state = { view: "overview", bench: null, cat: null,
+                card: "full", metric: "median_ns" };
+
+// ---- controls ----------------------------------------------------------
+const el = id => document.getElementById(id);
+document.getElementById("meta").textContent =
+  `${D.commits.length} commits · ${D.benches.length} benches · instance ${D.instance}`;
+
+// benchmark dropdown, grouped by category
+{
+  const sel = el("bench");
+  for (const cat of D.category_order) {
+    const inCat = D.benches.filter(b => D.categories[b] === cat);
+    if (!inCat.length) continue;
+    const og = document.createElement("optgroup");
+    og.label = cat;
+    for (const b of inCat) og.appendChild(new Option(b, b));
+    sel.appendChild(og);
+  }
+  state.bench = D.benches[0];
+}
+{ // category dropdown
+  const sel = el("cat");
+  for (const cat of D.category_order)
+    if (D.benches.some(b => D.categories[b] === cat)) sel.appendChild(new Option(cat, cat));
+  state.cat = sel.options[0]?.value;
+}
+{ // cardinality dropdown
+  const sel = el("card");
+  for (const c of D.cardinalities) sel.appendChild(new Option(c, c));
+  sel.value = state.card;
+}
+
+function segInit(id, key) {
+  el(id).querySelectorAll("button").forEach(b => {
+    const val = b.dataset.v ?? b.dataset.m;
+    b.onclick = () => { state[key] = val; syncSegs(); render(); pushHash(); };
+  });
+}
+function syncSegs() {
+  el("view").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === state.view));
+  el("metric").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === state.metric));
+  el("ctl-bench").classList.toggle("hidden", state.view !== "bench");
+  el("ctl-cat").classList.toggle("hidden", state.view !== "category");
+  // per-benchmark shows all cardinalities as traces, so its selector is hidden.
+  el("ctl-card").classList.toggle("hidden", state.view === "bench");
+}
+segInit("view", "view");
+segInit("metric", "metric");
+el("bench").onchange = e => { state.bench = e.target.value; render(); pushHash(); };
+el("cat").onchange   = e => { state.cat = e.target.value; render(); pushHash(); };
+el("card").onchange  = e => { state.card = e.target.value; render(); pushHash(); };
+
+// ---- shareable URL hash ------------------------------------------------
+function pushHash() {
+  const p = new URLSearchParams();
+  p.set("view", state.view); p.set("metric", state.metric);
+  if (state.view === "bench") p.set("bench", state.bench);
+  if (state.view === "category") p.set("cat", state.cat);
+  if (state.view !== "bench") p.set("card", state.card);
+  history.replaceState(null, "", "#" + p.toString());
+}
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (p.get("view")) state.view = p.get("view");
+  if (p.get("metric")) state.metric = p.get("metric");
+  if (p.get("bench") && D.benches.includes(p.get("bench"))) state.bench = p.get("bench");
+  if (p.get("cat")) state.cat = p.get("cat");
+  if (p.get("card") && D.cardinalities.includes(p.get("card"))) state.card = p.get("card");
+  el("bench").value = state.bench; el("cat").value = state.cat; el("card").value = state.card;
+}
+
+// ---- trace building ----------------------------------------------------
+const conv = (arr, div) => arr.map(v => v == null ? null : v / div);
+
+function lineTrace(name, y, color, hovline) {
+  return {
+    type: "scatter", mode: "lines+markers", name, x: X, y,
+    line: { color, width: 1.6 }, marker: { size: 4, color },
+    connectgaps: false, customdata: CUSTOM,
+    hovertemplate:
+      "<b>%{customdata[2]} · %{customdata[0]}</b><br>" +
+      "%{customdata[1]}<br>" +
+      `${name} — ${hovline}<br>` +
+      "<span style='font-size:.8em;color:#888'>click → open commit on GitHub</span>" +
+      "<extra></extra>",
+  };
+}
+
+function buildBench() {
+  const m = METRICS[state.metric];
+  return D.cardinalities.map((card, i) => {
+    const y = conv(D.series[card][state.bench][state.metric], m.div);
+    const t = lineTrace(card, y, PALETTE[i], `%{y:.4g} ${m.unit}`);
+    return t;
+  });
+}
+
+function buildCategory() {
+  const m = METRICS[state.metric];
+  const list = D.benches.filter(b => D.categories[b] === state.cat);
+  return list.map((b, i) => {
+    const y = conv(D.series[state.card][b][state.metric], m.div);
+    return lineTrace(b, y, PALETTE[i % PALETTE.length], `%{y:.4g} ${m.unit}`);
+  });
+}
+
+// Overview: one line per category = geomean of its benches' values normalised to
+// each bench's first measurement (cheap/expensive benches weigh equally; a bench
+// entering/leaving doesn't jolt the line).
+function buildOverview() {
+  const cats = D.category_order.filter(c => D.benches.some(b => D.categories[b] === c));
+  return cats.map((cat, ci) => {
+    const list = D.benches.filter(b => D.categories[b] === cat);
+    const base = {};
+    for (const b of list) base[b] = (D.series[state.card][b][state.metric].find(v => v != null) ?? null);
+    const y = X.map(i => {
+      let sumLog = 0, n = 0;
+      for (const b of list) {
+        const v = D.series[state.card][b][state.metric][i];
+        if (v != null && base[b]) { sumLog += Math.log(v / base[b]); n++; }
+      }
+      return n ? Math.exp(sumLog / n) : null;
+    });
+    return lineTrace(cat, y, PALETTE[ci], "%{y:.3f}× baseline");
+  });
+}
+
+// ---- render ------------------------------------------------------------
+let inited = false;
+function render() {
+  const m = METRICS[state.metric];
+  let traces, ytitle, title;
+  if (state.view === "bench") {
+    traces = buildBench();
+    ytitle = m.label;
+    title = `${state.bench}  ·  ${D.categories[state.bench]}  ·  all cardinalities`;
+  } else if (state.view === "category") {
+    traces = buildCategory();
+    ytitle = m.label;
+    title = `category: ${state.cat}  ·  ${traces.length} benches  ·  cardinality=${state.card}`;
+  } else {
+    traces = buildOverview();
+    ytitle = `relative ${m.unit === "ms" ? "latency" : "memory"} (geomean, ×baseline)`;
+    title = `per-category geomean vs. each bench's first measurement  ·  cardinality=${state.card}`;
+  }
+
+  const shapes = [], annotations = [];
+  if (hasBug) {
+    shapes.push({ type: "rect", xref: "x", yref: "paper",
+      x0: bugI[0] - 0.5, x1: bugI[1] + 0.5, y0: 0, y1: 1,
+      fillcolor: "rgba(200,0,0,0.07)", line: { width: 0 }, layer: "below" });
+    annotations.push({ x: (bugI[0] + bugI[1]) / 2, y: 1, xref: "x", yref: "paper",
+      yanchor: "bottom", showarrow: false, text: "#2759 window",
+      font: { size: 11, color: "#b00" } });
+  }
+  if (state.view === "overview") {
+    shapes.push({ type: "line", xref: "paper", yref: "y", x0: 0, x1: 1, y0: 1, y1: 1,
+      line: { color: "#999", width: 1, dash: "dot" }, layer: "below" });
+  }
+
+  const layout = {
+    title: { text: title, font: { size: 15 }, x: 0.02, xanchor: "left" },
+    margin: { l: 70, r: 20, t: 44, b: 118 },
+    hovermode: "closest", hoverlabel: { align: "left", bgcolor: "#fff" },
+    xaxis: { tickmode: "array", tickvals: X, ticktext: TICKTEXT, tickangle: -90,
+             tickfont: { size: 9 }, range: [-0.6, N - 0.4], showgrid: true,
+             gridcolor: "#f0f0f0", zeroline: false },
+    yaxis: { type: "log", title: { text: ytitle }, gridcolor: "#eee", zeroline: false,
+             ticks: "outside" },
+    legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left" },
+    shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+  };
+  const config = { responsive: true, scrollZoom: true, displaylogo: false,
+    modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
+    toImageButtonOptions: { format: "png", scale: 2, filename: "tantivy-agg-perf" } };
+
+  const div = el("chart");
+  Plotly.react(div, traces, layout, config);
+  if (!inited) {
+    div.on("plotly_click", ev => {
+      const url = ev.points?.[0]?.customdata?.[4];
+      if (url) window.open(url, "_blank", "noopener");
+    });
+    inited = true;
+  }
+}
+
+// ---- boot --------------------------------------------------------------
+readHash();
+syncSegs();
+render();
+pushHash();
+window.addEventListener("resize", () => Plotly.Plots.resize(el("chart")));
+</script>
+</body>
+</html>

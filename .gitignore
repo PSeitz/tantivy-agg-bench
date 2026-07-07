@@ -2,3 +2,5 @@
 Cargo.lock
 # reused benchmark indexes (persisted per cardinality; reuse is the default)
 /agg_bench
+# raw per-run benchmark stdout; the .json beside each is the tracked data
+results/**/*.log
