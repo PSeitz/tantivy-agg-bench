@@ -113,11 +113,14 @@ stable across every buggy-era commit → real, not noise. Plain aggs
 
 The chart is a **static, self-contained website** (Plotly.js) — zoom/pan, hover a
 point for the commit's date + `#PR · title`, and **click a point to open that
-PR on GitHub** (`quickwit-oss/tantivy`, the upstream remote; falls back to the
-commit when a point has no PR). PRs are resolved per commit via
-`gh api repos/<slug>/commits/<sha>/pulls` and cached in `scripts/pr_cache.json`
-(immutable per full SHA, committed); `build_site.py --no-pr` opts out (offline →
-commit links). Build + view:
+PR on GitHub** (`quickwit-oss/tantivy`, the upstream remote). A point links to a
+PR **only when the tested commit is that PR's tip** — the `merge_commit_sha`
+(squash/rebase) or the branch head = merge commit's 2nd parent (merge-commit
+strategy); intermediate commits of a multi-commit PR keep a plain commit link so
+several points don't collapse onto the same PR (34/41 link to a PR, each once).
+Resolved via `gh api repos/<slug>/commits/<sha>/pulls` + one parent lookup,
+cached in `scripts/pr_cache.json` (versioned `_v`, immutable per full SHA,
+committed); `build_site.py --no-pr` opts out (offline → commit links). Build + view:
 
 ```sh
 python3 scripts/build_site.py          # regenerate site/data.js from results/
