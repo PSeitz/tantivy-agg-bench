@@ -84,8 +84,9 @@
 
 <footer>
   <b>Drag</b> to box-zoom · <b>scroll</b> to zoom · <b>double-click</b> to reset ·
-  <b>click a point</b> to open that commit on GitHub · <b>click a legend entry</b> to toggle a series
-  (double-click to isolate). Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
+  <b>click a point</b> to open that commit on GitHub · <b>click a legend entry</b> to show only that
+  series (click again for all; double-click toggles one on/off) — the selection is saved in the URL.
+  Gaps = the bench didn't exist yet, or was skipped on the buggy commits.
 </footer>
 
 <script>
@@ -111,7 +112,7 @@ let bugI = D.commits.reduce((a, c, i) =>
 const hasBug = bugI[0] <= bugI[1];
 
 const state = { view: "overview", bench: null, cat: null,
-                card: "full", metric: "median_ns", scale: "log" };
+                card: "full", metric: "median_ns", scale: "log", sel: null };
 
 // ---- controls ----------------------------------------------------------
 const el = id => document.getElementById(id);
@@ -146,7 +147,9 @@ document.getElementById("meta").textContent =
 function segInit(id, key) {
   el(id).querySelectorAll("button").forEach(b => {
     const val = b.dataset.v ?? b.dataset.m ?? b.dataset.s;
-    b.onclick = () => { state[key] = val; syncSegs(); render(); pushHash(); };
+    // switching view changes the series set, so drop the isolate selection.
+    b.onclick = () => { state[key] = val; if (key === "view") state.sel = null;
+                        syncSegs(); render(); pushHash(); };
   });
 }
 function syncSegs() {
@@ -162,7 +165,8 @@ segInit("view", "view");
 segInit("metric", "metric");
 segInit("scale", "scale");
 el("bench").onchange = e => { state.bench = e.target.value; render(); pushHash(); };
-el("cat").onchange   = e => { state.cat = e.target.value; render(); pushHash(); };
+// changing category swaps the series set, so drop the isolate selection.
+el("cat").onchange   = e => { state.cat = e.target.value; state.sel = null; render(); pushHash(); };
 el("card").onchange  = e => { state.card = e.target.value; render(); pushHash(); };
 
 // ---- shareable URL hash ------------------------------------------------
@@ -172,6 +176,7 @@ function pushHash() {
   if (state.view === "bench") p.set("bench", state.bench);
   if (state.view === "category") p.set("cat", state.cat);
   if (state.view !== "bench") p.set("card", state.card);
+  if (state.sel && state.sel.length) p.set("sel", state.sel.join(","));
   history.replaceState(null, "", "#" + p.toString());
 }
 function readHash() {
@@ -182,6 +187,7 @@ function readHash() {
   if (p.get("bench") && D.benches.includes(p.get("bench"))) state.bench = p.get("bench");
   if (p.get("cat")) state.cat = p.get("cat");
   if (p.get("card") && D.cardinalities.includes(p.get("card"))) state.card = p.get("card");
+  state.sel = p.get("sel") ? p.get("sel").split(",").filter(Boolean) : null;
   el("bench").value = state.bench; el("cat").value = state.cat; el("card").value = state.card;
 }
 
@@ -260,6 +266,14 @@ function render() {
     title = `per-category geomean vs. each bench's first measurement  ·  cardinality=${state.card}`;
   }
 
+  // Apply the persisted legend selection (isolate): only named series stay
+  // visible. Drop a stale selection that matches nothing here (e.g. a link built
+  // for another view) so the chart never ends up blank. `visible` is set on every
+  // trace so Plotly.react reliably restores hidden ones once the selection clears.
+  let activeSel = state.sel && state.sel.length ? new Set(state.sel) : null;
+  if (activeSel && !traces.some(t => activeSel.has(t.name))) { state.sel = null; activeSel = null; }
+  traces.forEach(t => { t.visible = !activeSel || activeSel.has(t.name) ? true : "legendonly"; });
+
   const shapes = [], annotations = [];
   if (hasBug) {
     shapes.push({ type: "rect", xref: "x", yref: "paper",
@@ -283,7 +297,8 @@ function render() {
              gridcolor: "#f0f0f0", zeroline: false },
     yaxis: { type: state.scale, title: { text: ytitle }, gridcolor: "#eee",
              zeroline: false, ticks: "outside", autorange: true },
-    legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left" },
+    legend: { font: { size: 11 }, orientation: "v", x: 1.005, y: 1, xanchor: "left",
+              itemclick: "toggleothers", itemdoubleclick: "toggle" },
     shapes, annotations, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
   };
   const config = { responsive: true, scrollZoom: true, displaylogo: false,
@@ -296,6 +311,14 @@ function render() {
     div.on("plotly_click", ev => {
       const url = ev.points?.[0]?.customdata?.[4];
       if (url) window.open(url, "_blank", "noopener");
+    });
+    // Legend clicks (isolate via toggleothers) change trace visibility -> mirror
+    // the visible set into the URL. null when everything is shown again.
+    div.on("plotly_restyle", () => {
+      const vis = div.data.filter(t => t.visible !== "legendonly" && t.visible !== false)
+                          .map(t => t.name);
+      state.sel = vis.length === div.data.length ? null : vis;
+      pushHash();
     });
     inited = true;
   }
