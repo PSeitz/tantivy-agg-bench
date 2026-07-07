@@ -98,8 +98,17 @@ const METRICS = {
 const N = D.commits.length;
 const X = D.commits.map((_, i) => i);
 const TICKTEXT = D.commits.map(c => `${c.date}  ${c.short}`);
-// customdata per point: [short, subject, date, author, url] — shared by every trace.
-const CUSTOM = D.commits.map(c => [c.short, c.subject, c.date, c.author, c.url]);
+// customdata per point: [short, desc, date, author, url, hint] — shared by every
+// trace. A benchmarked commit is usually a PR's tip, so we surface + link the PR
+// (which groups the whole change); fall back to the bare commit when there's none.
+const CUSTOM = D.commits.map(c => {
+  const pr = c.pr;
+  const desc = pr ? `#${pr.number} · ${pr.title}` : c.subject;
+  const url  = pr ? pr.url : c.url;
+  const hint = pr ? `click → open PR #${pr.number} on GitHub`
+                  : "click → open commit on GitHub";
+  return [c.short, desc, c.date, c.author, url, hint];
+});
 const PALETTE = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b",
   "#e377c2","#7f7f7f","#bcbd22","#17becf","#393b79","#637939","#8c6d31",
   "#843c39","#7b4173","#3182bd","#e6550d","#31a354","#756bb1","#636363",
@@ -203,7 +212,7 @@ function lineTrace(name, y, color, hovline) {
       "<b>%{customdata[2]} · %{customdata[0]}</b><br>" +
       "%{customdata[1]}<br>" +
       `${name} — ${hovline}<br>` +
-      "<span style='font-size:.8em;color:#888'>click → open commit on GitHub</span>" +
+      "<span style='font-size:.8em;color:#888'>%{customdata[5]}</span>" +
       "<extra></extra>",
   };
 }

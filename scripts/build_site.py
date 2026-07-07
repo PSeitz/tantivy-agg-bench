@@ -38,6 +38,10 @@ METRICS = ["median_ns", "avg_memory"]
 
 SEP = "\x1f"  # unit separator: safe delimiter for git --format fields
 
+# Commit -> PR is immutable once merged, so we cache it (keyed by full SHA) and
+# commit the cache: rebuilds are then reproducible and work offline.
+PR_CACHE = os.path.join(HERE, "pr_cache.json")
+
 
 def category(name):
     """Primary aggregation of a bench, from its name prefix."""
@@ -74,6 +78,60 @@ def repo_web_url(repo):
     return "https://github.com/quickwit-oss/tantivy"
 
 
+def repo_slug(base_url):
+    """'owner/name' from the canonical GitHub base URL."""
+    return base_url.rstrip("/").split("github.com/", 1)[-1]
+
+
+def load_pr_cache():
+    if os.path.exists(PR_CACHE):
+        try:
+            return json.load(open(PR_CACHE))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def pr_for_commit(slug, full, cache, state):
+    """The merged PR that introduced `full`, as {number,title,url}, or None.
+
+    Uses GitHub's "PRs associated with a commit" endpoint via `gh`. A merged
+    commit's PR never changes, so results (incl. a genuine "no PR" -> None) are
+    cached; transient gh failures are not cached so they retry next build.
+    """
+    if full in cache:
+        return cache[full]
+    if not state["gh_ok"]:
+        return None
+    try:
+        r = subprocess.run(
+            ["gh", "api", f"repos/{slug}/commits/{full}/pulls",
+             "-H", "Accept: application/vnd.github+json"],
+            capture_output=True, text=True)
+    except FileNotFoundError:
+        state["gh_ok"] = False
+        print("warn: gh CLI not found; skipping PR resolution (links -> commits)")
+        return None
+    if r.returncode != 0:
+        tail = (r.stderr.strip().splitlines() or ["?"])[-1]
+        print(f"warn: gh api failed for {full[:8]}: {tail}")
+        return None  # transient -> don't cache
+    try:
+        prs = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        return None
+    merged = [p for p in prs if p.get("merged_at")]
+    chosen = merged or prs
+    if len(merged) > 1:
+        print(f"note: {full[:8]} in {len(merged)} merged PRs; using #{merged[0]['number']}")
+    pr = None
+    if chosen:
+        p = chosen[0]
+        pr = {"number": p["number"], "title": p["title"], "url": p["html_url"]}
+    cache[full] = pr
+    return pr
+
+
 def commit_meta(repo, commit):
     """(short, full, date, author, subject) for a commit via git, or None."""
     fmt = SEP.join(["%h", "%H", "%cd", "%an", "%s"])
@@ -94,6 +152,8 @@ def main():
                     help="results/<instance> dir (default: the only/first one)")
     ap.add_argument("--repo", default=DEFAULT_REPO, help="tantivy git repo for commit metadata")
     ap.add_argument("--out", default=os.path.join(PROJ, "site", "data.js"))
+    ap.add_argument("--no-pr", action="store_true",
+                    help="skip commit->PR resolution (offline; links point at commits)")
     args = ap.parse_args()
 
     inst = args.instance
@@ -129,8 +189,28 @@ def main():
 
     # One commit per committer-day -> date orders them; tie-break on short hash.
     order = sorted(runs.values(), key=lambda r: (r["date"], r["short"]))
-    commits = [{k: r[k] for k in ("short", "full", "date", "author", "subject", "url")}
-               for r in order]
+
+    # Resolve each commit's PR (the tested commit is usually a PR's tip, so the
+    # PR groups the whole change) -> link there instead of the bare commit.
+    slug = repo_slug(base_url)
+    cache = {} if args.no_pr else load_pr_cache()
+    state = {"gh_ok": not args.no_pr}
+    commits = []
+    npr = 0
+    for r in order:
+        c = {k: r[k] for k in ("short", "full", "date", "author", "subject", "url")}
+        pr = None if args.no_pr else pr_for_commit(slug, r["full"], cache, state)
+        if pr:
+            c["pr"] = pr
+            npr += 1
+        commits.append(c)
+    if not args.no_pr:
+        try:
+            with open(PR_CACHE, "w") as f:
+                json.dump(cache, f, indent=1, sort_keys=True)
+        except OSError as e:
+            print(f"warn: could not write {PR_CACHE}: {e}")
+
     benches = sorted(benches)
 
     # series[card][bench][metric] = list aligned to `commits`, null where absent.
@@ -163,8 +243,8 @@ def main():
         f.write("window.BENCH_DATA = ")
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
-    print(f"wrote {args.out}: {len(commits)} commits, {len(benches)} benches, "
-          f"repo {base_url}")
+    print(f"wrote {args.out}: {len(commits)} commits ({npr} with PR), "
+          f"{len(benches)} benches, repo {base_url}")
 
 
 if __name__ == "__main__":
